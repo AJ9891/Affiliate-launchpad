@@ -52,6 +52,8 @@ export default function AffiliateLaunchpad() {
   const [cart, setCart] = useState([]);
   const [showCheckout, setShowCheckout] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(null);
+  const [apiError, setApiError] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem("al_cart");
@@ -115,8 +117,14 @@ export default function AffiliateLaunchpad() {
     localStorage.setItem("al_orders", JSON.stringify(orders));
 
     try {
-      await sendToSendShark({ email: order.buyer.email, first_name: order.buyer.name }, ["buyer"]);
-    } catch (e) { console.warn(e); }
+      const buyerRes = await sendToSendShark({ email: order.buyer.email, first_name: order.buyer.name }, ["buyer"]);
+      if (!buyerRes.ok) {
+        orderRecord.apiError = "Could not tag buyer in SendShark.";
+      }
+    } catch (e) { 
+      console.warn(e); 
+      orderRecord.apiError = "SendShark error during purchase.";
+    }
 
     setOrderSuccess(orderRecord);
     setCart([]);
@@ -133,12 +141,17 @@ export default function AffiliateLaunchpad() {
 
   async function subscribe() {
     if (!email || !email.includes("@")) return alert("Please enter a valid email");
+    setLoading(true);
+    setApiError(null);
     setSubscribed(true);
     localStorage.setItem("al_subscribed", JSON.stringify({ email, date: new Date().toISOString() }));
     const res = await sendToSendShark({ email, first_name: "" }, ["affiliate-lead"]);
     if (res.ok) {
       window.open(LEAD_MAGNET_LINK, "_blank");
+    } else {
+      setApiError("Subscription failed. Please try again later.");
     }
+    setLoading(false);
   }
 
   return (
@@ -177,7 +190,9 @@ export default function AffiliateLaunchpad() {
                 Get the Affiliate Quickstart Guide
               </button>
             </div>
-            {subscribed && <p className="mt-2 text-sm text-green-700">Subscribed! Check SendShark to confirm the new contact.</p>}
+            {loading && <p className="mt-2 text-sm text-gray-500">Processing...</p>}
+            {subscribed && !apiError && <p className="mt-2 text-sm text-green-700">Subscribed! Check SendShark to confirm the new contact.</p>}
+            {apiError && <p className="mt-2 text-sm text-red-600">{apiError}</p>}
           </div>
 
           <div className="shadow rounded overflow-hidden">
@@ -232,6 +247,7 @@ export default function AffiliateLaunchpad() {
         <div className="fixed bottom-6 right-6 bg-white p-4 rounded shadow">
           <strong>Order complete</strong>
           <p className="text-sm text-gray-600">Order {orderSuccess.id} created. Download links:</p>
+          {orderSuccess.apiError && <p className="text-xs text-red-600 mt-1">{orderSuccess.apiError}</p>}
           <ul className="mt-2">
             {orderSuccess.downloads.map((d, i) => (
               <li key={i}><a className="underline text-sm" href={d.url} target="_blank" rel="noreferrer">Download {d.productId}</a></li>
