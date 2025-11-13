@@ -107,8 +107,8 @@ export default function AffiliateLaunchpad() {
 
     const downloads = [];
     for (const p of cart) {
-      const pdfUrl = await generateSamplePDF(p);
-      downloads.push({ productId: p.id, url: pdfUrl });
+      const pdfInfo = await generateSamplePDF(p);
+      downloads.push({ productId: p.id, url: pdfInfo.url, filename: pdfInfo.filename });
     }
 
     const orderRecord = { ...order, downloads };
@@ -132,11 +132,28 @@ export default function AffiliateLaunchpad() {
   }
 
   async function generateSamplePDF(product) {
-    const title = product.title;
-    const content = [`${product.title}`, "", "Included:", ...product.bullets.map((b) => `- ${b}`), "", "Thank you for purchasing!"].join("\\n");
-    const blob = new Blob([title + "\\n\\n" + content], { type: "text/plain" });
+    // Dynamic import to avoid adding pdf-lib to initial bundle
+    const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib');
+    const pdfDoc = await PDFDocument.create();
+    const page = pdfDoc.addPage([612, 792]); // US Letter size
+    const { height } = page.getSize();
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    let y = height - 60;
+    page.drawText(product.title, { x: 50, y, size: 22, font, color: rgb(0.1,0.1,0.1) });
+    y -= 40;
+    page.drawText('Included:', { x: 50, y, size: 14, font, color: rgb(0,0,0) });
+    y -= 24;
+    product.bullets.forEach(b => {
+      page.drawText('• ' + b, { x: 62, y, size: 12, font });
+      y -= 18;
+    });
+    y -= 24;
+    page.drawText('Thank you for purchasing!', { x: 50, y, size: 12, font, color: rgb(0,0.2,0) });
+    const pdfBytes = await pdfDoc.save();
+    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);
-    return url;
+    // Provide filename hint for download attribute
+    return { url, filename: `${product.id}.pdf` };
   }
 
   async function subscribe() {
@@ -250,7 +267,7 @@ export default function AffiliateLaunchpad() {
           {orderSuccess.apiError && <p className="text-xs text-red-600 mt-1">{orderSuccess.apiError}</p>}
           <ul className="mt-2">
             {orderSuccess.downloads.map((d, i) => (
-              <li key={i}><a className="underline text-sm" href={d.url} target="_blank" rel="noreferrer">Download {d.productId}</a></li>
+              <li key={i}><a className="underline text-sm" href={d.url} download={d.filename} target="_blank" rel="noreferrer">Download {d.productId}</a></li>
             ))}
           </ul>
           <div className="mt-2 text-right">
