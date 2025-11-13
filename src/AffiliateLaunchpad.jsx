@@ -132,27 +132,50 @@ export default function AffiliateLaunchpad() {
   }
 
   async function generateSamplePDF(product) {
-    // Dynamic import to avoid adding pdf-lib to initial bundle
     const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib');
     const pdfDoc = await PDFDocument.create();
-    const page = pdfDoc.addPage([612, 792]); // US Letter size
-    const { height } = page.getSize();
+    const page = pdfDoc.addPage([612, 792]);
+    const { width, height } = page.getSize();
+
+    // Try to embed cover image
+    let cover;
+    try {
+      const resp = await fetch(product.img, { mode: 'cors' });
+      const buf = new Uint8Array(await resp.arrayBuffer());
+      const isPng = buf.length > 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47 && buf[4] === 0x0D && buf[5] === 0x0A && buf[6] === 0x1A && buf[7] === 0x0A;
+      cover = isPng ? await pdfDoc.embedPng(buf) : await pdfDoc.embedJpg(buf);
+    } catch (e) {
+      // If image fetch or embed fails, continue without cover
+      cover = null;
+    }
+
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    let y = height - 60;
-    page.drawText(product.title, { x: 50, y, size: 22, font, color: rgb(0.1,0.1,0.1) });
-    y -= 40;
-    page.drawText('Included:', { x: 50, y, size: 14, font, color: rgb(0,0,0) });
-    y -= 24;
-    product.bullets.forEach(b => {
+    let y = height - 40;
+
+    if (cover) {
+      const maxW = width - 100; // 50pt margins left/right
+      const maxH = 300; // cap cover height
+      const scale = Math.min(maxW / cover.width, maxH / cover.height);
+      const imgW = cover.width * scale;
+      const imgH = cover.height * scale;
+      page.drawImage(cover, { x: (width - imgW) / 2, y: y - imgH, width: imgW, height: imgH });
+      y = y - imgH - 24;
+    }
+
+    page.drawText(product.title, { x: 50, y, size: 22, font, color: rgb(0.1, 0.1, 0.1) });
+    y -= 32;
+    page.drawText('Included:', { x: 50, y, size: 14, font, color: rgb(0, 0, 0) });
+    y -= 20;
+    product.bullets.forEach((b) => {
       page.drawText('• ' + b, { x: 62, y, size: 12, font });
-      y -= 18;
+      y -= 16;
     });
-    y -= 24;
-    page.drawText('Thank you for purchasing!', { x: 50, y, size: 12, font, color: rgb(0,0.2,0) });
+    y -= 20;
+    page.drawText('Thank you for purchasing!', { x: 50, y, size: 12, font, color: rgb(0, 0.2, 0) });
+
     const pdfBytes = await pdfDoc.save();
     const blob = new Blob([pdfBytes], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);
-    // Provide filename hint for download attribute
     return { url, filename: `${product.id}.pdf` };
   }
 
