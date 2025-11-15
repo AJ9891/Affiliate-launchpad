@@ -166,4 +166,18 @@ export default function AffiliateLaunchpad() {
     y -= 32;
     page.drawText('Included:', { x: 50, y, size: 14, font, color: rgb(0, 0, 0) });
     y -= 20;
-    product.bullets.forEach(
+    product.bullets.forEach((b) => {
+      page.drawText('\u2022 ' + b, { x: 62, y, size: 12, font });
+      y -= 16;
+    });
+    y -= 20;
+    page.drawText('Thank you for purchasing!', { x: 50, y, size: 12, font, color: rgb(0, 0.2, 0) });
+
+    const pdfBytes = await pdfDoc.save();
+    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    return { url, filename: `${product.id}.pdf` };
+  }
+
+  // ...existing code...
+}
