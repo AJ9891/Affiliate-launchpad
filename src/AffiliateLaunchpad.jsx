@@ -12,7 +12,7 @@ SendShark-integrated Affiliate Launchpad
 */
 
 const SENDSHARK_API_URL = import.meta.env.VITE_SENDSHARK_API_URL || "https://api.sendshark.com/v1";
-const SENDSHARK_API_KEY = import.meta.env.VITE_SENDSHARK_API_KEY || "572f5e8e-xxxx-xxxx-xxxx-xxxxxxxxxxxx";
+const SENDSHARK_API_KEY = import.meta.env.VITE_SENDSHARK_API_KEY || "57ca8faec828e66810724911ee7c798e7";
 const SENDSHARK_LIST_ID = import.meta.env.VITE_SENDSHARK_LIST_ID || "Launchpad";
 const FROM_NAME = import.meta.env.VITE_FROM_NAME || "Abbigal";
 const FROM_EMAIL = import.meta.env.VITE_FROM_EMAIL || "irwinabby004@gmail.com";
