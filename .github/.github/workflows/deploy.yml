@@ -19,3 +19,17 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
           publish_dir: ./
+# snippet — add to your workflow (replace where appropriate)
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      SENDSHARK_API_KEY: ${{ secrets.SENDSHARK_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install
+        run: npm ci
+      - name: Build / Run tests
+        run: npm run build
+      - name: Use SendShark
+        run: node ./scripts/use-sendshark.js
