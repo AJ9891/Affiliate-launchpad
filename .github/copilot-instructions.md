@@ -12,9 +12,10 @@ Single-page React application for affiliate marketing lead capture and digital p
 
 ### Environment Variables Pattern
 - **All config via Vite env vars**: Use `import.meta.env.VITE_*` (NOT `process.env`)
-- Required vars: `VITE_SENDSHARK_API_URL`, `VITE_SENDSHARK_API_KEY`, `VITE_SENDSHARK_LIST_ID`, `VITE_LEAD_MAGNET_DOWNLOAD`
+- Required vars: `VITE_SENDSHARK_API_URL`, `VITE_SENDSHARK_API_KEY`, `VITE_SENDSHARK_LIST_ID`, `VITE_LEAD_MAGNET_DOWNLOAD`, `VITE_FROM_NAME`, `VITE_FROM_EMAIL`
 - See `.env.example` for the complete list - never commit actual `.env` file
-- All env vars have fallback defaults in `AffiliateLaunchpad.jsx` (lines 13-17)
+- All env vars have fallback defaults in `AffiliateLaunchpad.jsx` (lines 14-19)
+- **Critical**: Empty string defaults for API credentials prevent accidental API calls with hardcoded values
 
 ### SendShark Integration
 - **API endpoint pattern**: `${SENDSHARK_API_URL}/lists/${LIST_ID}/subscribers` (see `sendToSendShark()`)
@@ -25,13 +26,14 @@ Single-page React application for affiliate marketing lead capture and digital p
 ### State Management
 - **localStorage for persistence**: Cart (`al_cart`), orders (`al_orders`), subscription status (`al_subscribed`)
 - **React useState only**: No Redux/Context - all state is local to the single component
-- Cart syncs to localStorage via `useEffect` dependency on `cart` (lines 54-56)
+- Cart syncs to localStorage via `useEffect` dependency on `cart` (lines 62-64)
+- No `apiError` state in current implementation - errors logged to console only
 
 ### PDF Generation Pattern
-- **Client-side PDFs via pdf-lib**: `generateSamplePDF()` creates downloadable products dynamically
-- **Image embedding**: Fetches product cover images from Unsplash, handles CORS and PNG/JPEG detection
-- **Error resilience**: Continues without cover image if fetch fails (lines 126-133)
-- Returns `{ url, filename }` using `URL.createObjectURL(blob)` for instant downloads
+- **Client-side text files as PDFs**: `generateSamplePDF()` creates simple text blob downloads (not actual PDFs with pdf-lib)
+- **Simple implementation**: Creates plain text content from product title and bullets
+- **Instant downloads**: Returns URL via `URL.createObjectURL(blob)` for immediate download
+- Returns just the URL string (not an object with `{ url, filename }`)
 
 ## Development Workflow
 
@@ -43,11 +45,11 @@ npm run dev  # Vite dev server at http://localhost:5173
 
 ### Build & Deploy to GitHub Pages
 ```bash
-npm run build          # Builds to dist/ with base path /Affiliate-launchpad/
+npm run build          # Builds to dist/ with base path /affiliate-launchpad/
 npm run deploy         # Pushes dist/ to gh-pages branch using gh-pages package
 ```
 
-**Critical**: Vite config sets `base: '/Affiliate-launchpad/'` - this must match the GitHub repo name for assets to load correctly on GitHub Pages.
+**Critical**: Vite config sets `base: '/affiliate-launchpad/'` - this must match the GitHub repo name for assets to load correctly on GitHub Pages.
 
 ## Code Conventions
 
@@ -57,33 +59,33 @@ npm run deploy         # Pushes dist/ to gh-pages branch using gh-pages package
 - **Responsive**: Use `md:` prefix for desktop layouts (e.g., `md:grid-cols-2`)
 
 ### Data Structures
-- **Product schema**: `{ id, title, price, bullets[], img, color }` (see `sampleProducts` lines 19-44)
-- **Order schema**: `{ id, items, buyer: { name, email }, date, downloads[], apiError? }`
-- **Download schema**: `{ productId, url, filename }`
+- **Product schema**: `{ id, title, price, bullets[], img, color }` (see `sampleProducts` lines 22-47)
+- **Order schema**: `{ id, items, buyer: { name, email }, date, downloads[] }`
+- **Download schema**: `{ productId, url }` (no filename property)
 
 ### Async Patterns
 - **Fetch with error handling**: All API calls wrapped in try/catch, return `{ ok, status?, data?, msg? }`
-- **Loading states**: Set `loading` boolean before async operations, clear after
-- **User feedback**: Display API errors via `apiError` state, success via `subscribed`/`orderSuccess`
+- **Loading states**: No global loading state in current implementation
+- **User feedback**: Success feedback via `subscribed`/`orderSuccess` states, errors logged to console
 
 ## Common Modifications
 
 ### Adding New Products
-Edit the `sampleProducts` array (lines 19-44). Each product requires:
+Edit the `sampleProducts` array (lines 22-47). Each product requires:
 - Unique `id`, `title`, `price`, `bullets[]`, `img` (Unsplash URL), `color` (Tailwind bg class)
 
 ### Changing Email Automation Tags
 Modify tag arrays in:
-- Line 186: `["affiliate-lead"]` for subscribers
-- Line 117: `["buyer"]` for purchasers
+- Line 143: `["affiliate-lead"]` for subscribers
+- Line 119: `["buyer"]` for purchasers
 
 ### Customizing SendShark Payload
-Update `sendToSendShark()` payload object (lines 72-77) - current fields: `email`, `first_name`, `tags`, `source`
+Update `sendToSendShark()` payload object (lines 76-81) - current fields: `email`, `first_name`, `tags`, `source`
 
 ### Styling Updates
-- Hero section: lines 212-235 (2-column grid with email capture)
-- Product cards: lines 240-259 (3-column responsive grid)
-- Checkout modal: lines 264-278 (fixed overlay with form)
+- Hero section: lines 165-185 (2-column grid with email capture)
+- Product cards: lines 188-207 (3-column responsive grid)
+- Checkout modal: lines 217-235 (fixed overlay with form)
 
 ## Testing Strategy
 No automated tests configured. Manual testing checklist:
@@ -97,3 +99,4 @@ No automated tests configured. Manual testing checklist:
 - **Client-side only**: No backend, all data in localStorage (orders not persisted server-side)
 - **CORS dependency**: PDF cover images require CORS-enabled sources (Unsplash works, some CDNs may not)
 - **No email validation**: Basic `includes('@')` check only
+- **Note**: Current implementation uses simple text file generation, not actual PDF rendering with pdf-lib
