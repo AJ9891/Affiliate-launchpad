@@ -27,6 +27,7 @@ const SUBSCRIPTION_TIERS = {
       'Access to affiliate network',
       'Direct messaging with members',
       'Basic analytics dashboard',
+      'AI-powered monthly action plan',
       'Monthly group coaching call',
       'Resource library access'
     ]
@@ -38,6 +39,7 @@ const SUBSCRIPTION_TIERS = {
     features: [
       'Everything in Starter tier',
       'Advanced analytics & tracking',
+      'Enhanced action plan (16 tasks)',
       '1-on-1 mentorship calls (2/month)',
       'Exclusive premium content library',
       'Priority support (24h response)',
@@ -94,6 +96,11 @@ export default function AffiliateLaunchpad() {
   const [pdfReady, setPdfReady] = useState(false);
   const [pdfUrl, setPdfUrl] = useState(null);
   const [loading, setLoading] = useState(false);
+  
+  // Action Plan state
+  const [showActionPlan, setShowActionPlan] = useState(false);
+  const [actionPlan, setActionPlan] = useState(null);
+  const [planLoading, setPlanLoading] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem("al_cart");
@@ -109,6 +116,9 @@ export default function AffiliateLaunchpad() {
     if (savedSubscribed) {
       setSubscribed(true);
     }
+    
+    const plan = localStorage.getItem("al_action_plan");
+    if (plan) setActionPlan(JSON.parse(plan));
   }, []);
 
   useEffect(() => {
@@ -117,6 +127,90 @@ export default function AffiliateLaunchpad() {
 
   function addToCart(product) {
     setCart((c) => [...c, product]);
+  }
+  
+  // Generate AI-powered monthly action plan
+  async function generateActionPlan(tier) {
+    setPlanLoading(true);
+    
+    // Simulate AI generation (in production, call OpenAI API)
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    const now = new Date();
+    const planMonth = now.toLocaleString('default', { month: 'long', year: 'numeric' });
+    
+    const baseTasks = [
+      { id: 1, week: 1, task: 'Set up your affiliate dashboard and tracking tools', completed: false, priority: 'high' },
+      { id: 2, week: 1, task: 'Research and select your first 3 affiliate programs', completed: false, priority: 'high' },
+      { id: 3, week: 1, task: 'Create social media profiles for affiliate marketing', completed: false, priority: 'medium' },
+      { id: 4, week: 2, task: 'Write your first product review or comparison article', completed: false, priority: 'high' },
+      { id: 5, week: 2, task: 'Create 5 social media posts promoting affiliate products', completed: false, priority: 'medium' },
+      { id: 6, week: 2, task: 'Join 2 affiliate marketing communities for networking', completed: false, priority: 'low' },
+      { id: 7, week: 3, task: 'Launch your first email campaign to subscribers', completed: false, priority: 'high' },
+      { id: 8, week: 3, task: 'Experiment with 2 traffic sources (SEO, ads, or social)', completed: false, priority: 'high' },
+      { id: 9, week: 3, task: 'Analyze your first week of traffic and conversion data', completed: false, priority: 'medium' },
+      { id: 10, week: 4, task: 'Optimize top-performing content based on analytics', completed: false, priority: 'high' },
+      { id: 11, week: 4, task: 'Scale successful campaigns with increased budget/effort', completed: false, priority: 'medium' },
+      { id: 12, week: 4, task: 'Document lessons learned and plan next month', completed: false, priority: 'medium' }
+    ];
+    
+    const premiumTasks = tier === 'premium' ? [
+      { id: 13, week: 1, task: 'Schedule your 1-on-1 mentorship call', completed: false, priority: 'high' },
+      { id: 14, week: 2, task: 'Set up A/B tests for your top 3 landing pages', completed: false, priority: 'high' },
+      { id: 15, week: 3, task: 'Build custom automation workflow for email sequences', completed: false, priority: 'medium' },
+      { id: 16, week: 4, task: 'Review advanced analytics and create custom reports', completed: false, priority: 'high' }
+    ] : [];
+    
+    const plan = {
+      month: planMonth,
+      tier: tier,
+      generated: now.toISOString(),
+      lastUpdated: now.toISOString(),
+      tasks: [...baseTasks, ...premiumTasks],
+      stats: {
+        total: baseTasks.length + premiumTasks.length,
+        completed: 0,
+        progress: 0
+      }
+    };
+    
+    setActionPlan(plan);
+    localStorage.setItem('al_action_plan', JSON.stringify(plan));
+    setPlanLoading(false);
+    return plan;
+  }
+  
+  // Toggle task completion
+  function toggleTask(taskId) {
+    if (!actionPlan) return;
+    
+    const updatedTasks = actionPlan.tasks.map(task => 
+      task.id === taskId ? { ...task, completed: !task.completed } : task
+    );
+    
+    const completedCount = updatedTasks.filter(t => t.completed).length;
+    const progress = Math.round((completedCount / updatedTasks.length) * 100);
+    
+    const updatedPlan = {
+      ...actionPlan,
+      tasks: updatedTasks,
+      lastUpdated: new Date().toISOString(),
+      stats: {
+        total: updatedTasks.length,
+        completed: completedCount,
+        progress: progress
+      }
+    };
+    
+    setActionPlan(updatedPlan);
+    localStorage.setItem('al_action_plan', JSON.stringify(updatedPlan));
+  }
+  
+  // Regenerate plan for new month
+  async function regeneratePlan() {
+    if (currentUserTier) {
+      await generateActionPlan(currentUserTier);
+    }
   }
 
   async function sendToSendShark(subscriber, tags=[]) {
@@ -277,6 +371,9 @@ export default function AffiliateLaunchpad() {
       localStorage.setItem("al_subscribed", JSON.stringify({ email, firstName, tier: selectedTier, date: new Date().toISOString() }));
       localStorage.setItem('al_current_tier', selectedTier);
       
+      // Generate action plan for new subscriber
+      await generateActionPlan(selectedTier);
+      
       const pdfUrl = await generateTierPDF(firstName.trim(), selectedTier);
       if (pdfUrl) {
         const link = document.createElement('a');
@@ -386,6 +483,24 @@ export default function AffiliateLaunchpad() {
                       📥 Download PDF Again
                     </a>
                   )}
+                </div>
+                
+                {/* Action Plan button for all subscribed users */}
+                <div className="mt-4">
+                  <button 
+                    onClick={() => {
+                      if (!actionPlan) {
+                        generateActionPlan(currentUserTier);
+                      }
+                      setShowActionPlan(true);
+                    }}
+                    className="w-full px-4 py-2 bg-emerald-600 text-white rounded font-semibold hover:bg-emerald-700 flex items-center justify-center gap-2"
+                  >
+                    📋 My Monthly Action Plan
+                    {actionPlan && actionPlan.stats.progress > 0 && (
+                      <span className="px-2 py-0.5 bg-emerald-800 rounded text-xs">{actionPlan.stats.progress}%</span>
+                    )}
+                  </button>
                 </div>
                 
                 {currentUserTier === 'basic' && (
@@ -642,6 +757,163 @@ export default function AffiliateLaunchpad() {
               <p className="text-sm mb-3">You have <strong>2 sessions remaining</strong> this month</p>
               <button className="w-full px-4 py-2 bg-emerald-600 text-white rounded font-semibold hover:bg-emerald-700">Book Next Session</button>
             </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Monthly Action Plan Modal - Available for both Basic and Premium */}
+      {showActionPlan && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded shadow max-w-4xl w-full p-6 max-h-[85vh] overflow-auto">
+            <div className="flex justify-between items-center mb-4">
+              <div>
+                <h4 className="font-bold text-xl">📋 Your Monthly Action Plan</h4>
+                <p className="text-sm text-gray-600">{actionPlan?.month || 'Loading...'} • {actionPlan?.tier === 'premium' ? 'Premium' : 'Basic'} Tier</p>
+              </div>
+              <button onClick={() => setShowActionPlan(false)} className="text-2xl hover:text-gray-600">&times;</button>
+            </div>
+            
+            {planLoading ? (
+              <div className="py-12 text-center">
+                <div className="text-5xl mb-4">🤖</div>
+                <p className="text-gray-600">AI is generating your personalized action plan...</p>
+              </div>
+            ) : actionPlan ? (
+              <>
+                {/* Progress Stats */}
+                <div className="grid grid-cols-3 gap-4 mb-6">
+                  <div className="p-4 bg-indigo-50 rounded border border-indigo-200 text-center">
+                    <div className="text-2xl font-bold text-indigo-600">{actionPlan.stats.total}</div>
+                    <div className="text-xs text-gray-600">Total Tasks</div>
+                  </div>
+                  <div className="p-4 bg-emerald-50 rounded border border-emerald-200 text-center">
+                    <div className="text-2xl font-bold text-emerald-600">{actionPlan.stats.completed}</div>
+                    <div className="text-xs text-gray-600">Completed</div>
+                  </div>
+                  <div className="p-4 bg-amber-50 rounded border border-amber-200 text-center">
+                    <div className="text-2xl font-bold text-amber-600">{actionPlan.stats.progress}%</div>
+                    <div className="text-xs text-gray-600">Progress</div>
+                  </div>
+                </div>
+                
+                {/* Progress Bar */}
+                <div className="mb-6">
+                  <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-gradient-to-r from-emerald-500 to-emerald-600 transition-all duration-500"
+                      style={{ width: `${actionPlan.stats.progress}%` }}
+                    ></div>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1 text-right">
+                    Last updated: {new Date(actionPlan.lastUpdated).toLocaleDateString()}
+                  </p>
+                </div>
+                
+                {/* Weekly Task Lists */}
+                <div className="space-y-6">
+                  {[1, 2, 3, 4].map(week => {
+                    const weekTasks = actionPlan.tasks.filter(t => t.week === week);
+                    const completedInWeek = weekTasks.filter(t => t.completed).length;
+                    
+                    return (
+                      <div key={week} className="border rounded-lg p-4">
+                        <div className="flex justify-between items-center mb-3">
+                          <h5 className="font-bold text-lg">Week {week}</h5>
+                          <span className="text-sm text-gray-600">
+                            {completedInWeek}/{weekTasks.length} completed
+                          </span>
+                        </div>
+                        <div className="space-y-2">
+                          {weekTasks.map(task => (
+                            <div 
+                              key={task.id}
+                              onClick={() => toggleTask(task.id)}
+                              className={`flex items-start gap-3 p-3 rounded cursor-pointer transition ${
+                                task.completed 
+                                  ? 'bg-emerald-50 border border-emerald-200' 
+                                  : 'bg-gray-50 hover:bg-gray-100 border border-gray-200'
+                              }`}
+                            >
+                              <div className="mt-0.5">
+                                {task.completed ? (
+                                  <span className="text-emerald-600 text-xl">✓</span>
+                                ) : (
+                                  <span className="text-gray-400 text-xl">○</span>
+                                )}
+                              </div>
+                              <div className="flex-1">
+                                <p className={`text-sm ${task.completed ? 'line-through text-gray-500' : 'text-gray-800'}`}>
+                                  {task.task}
+                                </p>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className={`text-xs px-2 py-0.5 rounded ${
+                                    task.priority === 'high' ? 'bg-red-100 text-red-700' :
+                                    task.priority === 'medium' ? 'bg-amber-100 text-amber-700' :
+                                    'bg-gray-100 text-gray-700'
+                                  }`}>
+                                    {task.priority}
+                                  </span>
+                                  {task.id >= 13 && (
+                                    <span className="text-xs px-2 py-0.5 rounded bg-purple-100 text-purple-700">
+                                      Premium
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                
+                {/* Action Buttons */}
+                <div className="mt-6 flex gap-3">
+                  <button 
+                    onClick={regeneratePlan}
+                    disabled={planLoading}
+                    className="flex-1 px-4 py-2 border rounded hover:bg-gray-50 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  >
+                    🔄 Regenerate Plan
+                  </button>
+                  <button 
+                    onClick={() => setShowActionPlan(false)}
+                    className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                  >
+                    Close
+                  </button>
+                </div>
+                
+                {/* Premium Upgrade CTA for Basic users */}
+                {actionPlan.tier === 'basic' && (
+                  <div className="mt-6 p-4 bg-gradient-to-r from-purple-50 to-indigo-50 rounded border border-purple-200">
+                    <h5 className="font-bold text-purple-900 mb-2">🚀 Get 4 Additional Premium Tasks</h5>
+                    <p className="text-sm text-gray-700 mb-3">Upgrade to Premium for personalized mentorship, A/B testing, automation, and advanced analytics tasks!</p>
+                    <button 
+                      onClick={() => {
+                        upgradeTier('premium');
+                        setShowActionPlan(false);
+                      }}
+                      className="w-full px-4 py-2 bg-purple-600 text-white rounded font-semibold hover:bg-purple-700"
+                    >
+                      Upgrade to Premium - ${SUBSCRIPTION_TIERS.premium.price}/mo
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="py-12 text-center">
+                <div className="text-5xl mb-4">📋</div>
+                <p className="text-gray-600 mb-4">No action plan yet</p>
+                <button 
+                  onClick={() => generateActionPlan(currentUserTier)}
+                  className="px-6 py-3 bg-emerald-600 text-white rounded font-semibold hover:bg-emerald-700"
+                >
+                  Generate My Action Plan
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
