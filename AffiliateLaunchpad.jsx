@@ -18,6 +18,36 @@ const FROM_NAME = import.meta.env.VITE_FROM_NAME || "Abby";
 const FROM_EMAIL = import.meta.env.VITE_FROM_EMAIL || "noreply@example.com";
 const LEAD_MAGNET_LINK = import.meta.env.VITE_LEAD_MAGNET_DOWNLOAD || "#";
 
+const SUBSCRIPTION_TIERS = {
+  basic: {
+    id: 'basic',
+    name: 'Affiliate Starter',
+    price: 29.99,
+    features: [
+      'Access to affiliate network',
+      'Direct messaging with members',
+      'Basic analytics dashboard',
+      'Monthly group coaching call',
+      'Resource library access'
+    ]
+  },
+  premium: {
+    id: 'premium',
+    name: 'Affiliate Pro',
+    price: 59.99,
+    features: [
+      'Everything in Starter tier',
+      'Advanced analytics & tracking',
+      '1-on-1 mentorship calls (2/month)',
+      'Exclusive premium content library',
+      'Priority support (24h response)',
+      'Custom landing page templates',
+      'A/B testing tools',
+      'Advanced automation workflows'
+    ]
+  }
+};
+
 export default function AffiliateLaunchpad() {
   const sampleProducts = [
     {
@@ -48,14 +78,37 @@ export default function AffiliateLaunchpad() {
 
   const [products] = useState(sampleProducts);
   const [email, setEmail] = useState("");
+  const [firstName, setFirstName] = useState("");
   const [subscribed, setSubscribed] = useState(false);
   const [cart, setCart] = useState([]);
   const [showCheckout, setShowCheckout] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(null);
+  
+  // Tier system state
+  const [selectedTier, setSelectedTier] = useState('basic');
+  const [currentUserTier, setCurrentUserTier] = useState(null);
+  const [showAnalytics, setShowAnalytics] = useState(false);
+  const [showContentLibrary, setShowContentLibrary] = useState(false);
+  const [showABTesting, setShowABTesting] = useState(false);
+  const [showSupport, setShowSupport] = useState(false);
+  const [pdfReady, setPdfReady] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem("al_cart");
     if (saved) setCart(JSON.parse(saved));
+    
+    const savedTier = localStorage.getItem("al_current_tier");
+    if (savedTier) {
+      setCurrentUserTier(savedTier);
+      setSelectedTier(savedTier);
+    }
+    
+    const savedSubscribed = localStorage.getItem("al_subscribed");
+    if (savedSubscribed) {
+      setSubscribed(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -93,6 +146,86 @@ export default function AffiliateLaunchpad() {
       console.error("SendShark API error", e);
       return { ok: false, msg: e.message };
     }
+  }
+
+  async function generateTierPDF(name, tier) {
+    try {
+      setPdfReady(false);
+      const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib');
+      const pdfDoc = await PDFDocument.create();
+      const page = pdfDoc.addPage([600, 800]);
+      const { width, height} = page.getSize();
+      
+      const regularFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+      const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+      
+      page.drawText('Affiliate Marketing Success Guide', {
+        x: 50, y: height - 100, size: 24, font: boldFont, color: rgb(0, 0.2, 0.8)
+      });
+      
+      page.drawText(`Welcome to ${SUBSCRIPTION_TIERS[tier]?.name || 'Affiliate Launchpad'}, ${name}!`, {
+        x: 50, y: height - 140, size: 16, font: regularFont, color: rgb(0.2, 0.2, 0.2)
+      });
+      
+      const content = tier === 'premium' ? [
+        'PREMIUM AFFILIATE SUCCESS STRATEGIES:', '', '1. Advanced Revenue Optimization',
+        '   • Multi-channel funnel strategies', '   • Advanced split testing methodologies',
+        '   • Premium conversion tactics', '', '2. Data-Driven Decision Making',
+        '   • Analytics setup and interpretation', '   • KPI tracking and optimization',
+        '   • ROI maximization techniques', '', '3. Exclusive Network Access',
+        '   • Premium member networking events', '   • 1-on-1 mentorship opportunities',
+        '   • Insider industry connections', '', '4. Advanced Automation Systems',
+        '   • Email sequence optimization', '   • Behavioral trigger campaigns',
+        '   • Advanced customer segmentation', '', 'Your Premium Benefits:',
+        '✓ Priority support (24h response)', '✓ Monthly 1-on-1 mentorship calls',
+        '✓ Exclusive content library access', '✓ Advanced analytics dashboard',
+        '✓ A/B testing tools', '', 'Ready to 10x your affiliate income? Let\'s get started!'
+      ] : [
+        'AFFILIATE MARKETING FUNDAMENTALS:', '', '1. Getting Started Right',
+        '   • Choosing profitable niches', '   • Setting up tracking systems',
+        '   • Building your first funnel', '', '2. Essential Tools & Resources',
+        '   • Free traffic generation methods', '   • Content creation strategies',
+        '   • Email list building basics', '', '3. Network Growth Strategies',
+        '   • Connecting with other affiliates', '   • Sharing best practices',
+        '   • Collaborative opportunities', '', '4. Monthly Action Plan',
+        '   • Week 1: Setup and foundation', '   • Week 2: Content creation',
+        '   • Week 3: Traffic generation', '   • Week 4: Optimization and scaling',
+        '', 'Your Starter Benefits:', '✓ Access to affiliate network',
+        '✓ Monthly group coaching calls', '✓ Basic analytics dashboard',
+        '✓ Resource library access', '', 'Ready to upgrade to Premium for advanced features?'
+      ];
+      
+      let yPos = height - 180;
+      content.forEach((line) => {
+        const isHeading = line.endsWith(':') && !line.startsWith(' ');
+        const isCheckmark = line.startsWith('✓');
+        const fontSize = isHeading ? 14 : 11;
+        const font = isHeading ? boldFont : regularFont;
+        const color = isCheckmark ? rgb(0, 0.6, 0) : rgb(0.1, 0.1, 0.1);
+        page.drawText(line, { x: 50, y: yPos, size: fontSize, font, color });
+        yPos -= isHeading ? 20 : 15;
+      });
+      
+      page.drawText('Generated by Affiliate Launchpad • Your Success Starts Here', {
+        x: 50, y: 50, size: 10, font: regularFont, color: rgb(0.5, 0.5, 0.5)
+      });
+      
+      const pdfBytes = await pdfDoc.save();
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      setPdfUrl(url);
+      setPdfReady(true);
+      return url;
+    } catch (error) {
+      console.error('PDF generation error:', error);
+      return null;
+    }
+  }
+
+  function upgradeTier(newTier) {
+    setCurrentUserTier(newTier);
+    setSelectedTier(newTier);
+    localStorage.setItem('al_current_tier', newTier);
   }
 
   async function completePurchase(billingName) {
@@ -134,13 +267,31 @@ export default function AffiliateLaunchpad() {
 
   async function subscribe() {
     if (!email || !email.includes("@")) return alert("Please enter a valid email");
-    setSubscribed(true);
-    localStorage.setItem("al_subscribed", JSON.stringify({ email, date: new Date().toISOString() }));
-    // Send to SendShark and tag as affiliate-lead
-    const res = await sendToSendShark({ email, first_name: "" }, ["affiliate-lead"]);
-    if (res.ok) {
-      // Show download link immediately
-      window.open(LEAD_MAGNET_LINK, "_blank");
+    if (!firstName || !firstName.trim()) return alert("Please enter your first name");
+    
+    setLoading(true);
+    try {
+      await sendToSendShark({ email, first_name: firstName.trim() }, ["affiliate-lead"]);
+      setCurrentUserTier(selectedTier);
+      setSubscribed(true);
+      localStorage.setItem("al_subscribed", JSON.stringify({ email, firstName, tier: selectedTier, date: new Date().toISOString() }));
+      localStorage.setItem('al_current_tier', selectedTier);
+      
+      const pdfUrl = await generateTierPDF(firstName.trim(), selectedTier);
+      if (pdfUrl) {
+        const link = document.createElement('a');
+        link.href = pdfUrl;
+        link.download = `affiliate-success-guide-${selectedTier}.pdf`;
+        link.click();
+      }
+      
+      setEmail('');
+      setFirstName('');
+    } catch (error) {
+      console.error('Subscription error:', error);
+      alert('There was an issue. Please try again.');
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -166,21 +317,100 @@ export default function AffiliateLaunchpad() {
           <div>
             <h2 className="text-2xl font-bold">Turn traffic into buyers — without the headache</h2>
             <p className="mt-3 text-gray-700">
-              This demo captures emails, adds them to your SendShark list, and triggers your automation sequence.
+              {subscribed 
+                ? `Welcome to ${SUBSCRIPTION_TIERS[currentUserTier]?.name}!` 
+                : "Choose your plan and start earning commissions today."}
             </p>
-            <ul className="mt-4 grid gap-2 text-sm">
-              <li>• Email capture with SendShark integration</li>
-              <li>• Add to cart + mock checkout</li>
-              <li>• Client-side downloads created per product</li>
-            </ul>
 
-            <div className="mt-6 flex gap-3">
-              <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="your email" className="px-4 py-2 border rounded w-72" />
-              <button onClick={subscribe} className="px-4 py-2 rounded bg-emerald-600 text-white">
-                Get the Affiliate Quickstart Guide
-              </button>
-            </div>
-            {subscribed && <p className="mt-2 text-sm text-green-700">Subscribed! Check SendShark to confirm the new contact.</p>}
+            {!subscribed ? (
+              <>
+                <div className="mt-6 grid grid-cols-2 gap-4">
+                  {Object.values(SUBSCRIPTION_TIERS).map(tier => (
+                    <div
+                      key={tier.id}
+                      onClick={() => setSelectedTier(tier.id)}
+                      className={`cursor-pointer p-4 rounded border-2 transition ${
+                        selectedTier === tier.id 
+                          ? 'border-indigo-600 bg-indigo-50' 
+                          : 'border-gray-300 bg-white hover:border-indigo-300'
+                      }`}
+                    >
+                      {tier.id === 'premium' && (
+                        <span className="inline-block px-2 py-1 text-xs font-bold bg-emerald-500 text-white rounded mb-2">POPULAR</span>
+                      )}
+                      <h3 className="font-bold text-lg">{tier.name}</h3>
+                      <p className="text-2xl font-extrabold text-indigo-600 my-2">${tier.price}<span className="text-sm text-gray-600 font-normal">/mo</span></p>
+                      <ul className="text-xs space-y-1 text-gray-700">
+                        {tier.features.slice(0, 3).map((f, i) => (
+                          <li key={i}>✓ {f}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-6 space-y-3">
+                  <input 
+                    value={firstName} 
+                    onChange={(e) => setFirstName(e.target.value)} 
+                    placeholder="Your first name" 
+                    className="w-full px-4 py-2 border rounded" 
+                  />
+                  <input 
+                    value={email} 
+                    onChange={(e) => setEmail(e.target.value)} 
+                    placeholder="Your email address" 
+                    className="w-full px-4 py-2 border rounded" 
+                  />
+                  <button 
+                    onClick={subscribe} 
+                    disabled={loading}
+                    className="w-full px-4 py-2 rounded bg-indigo-600 text-white font-semibold hover:bg-indigo-700 disabled:bg-gray-400"
+                  >
+                    {loading ? 'Processing...' : `Join ${SUBSCRIPTION_TIERS[selectedTier].name} - $${SUBSCRIPTION_TIERS[selectedTier].price}/mo`}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="mt-6">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="px-3 py-1 rounded-full text-sm font-bold bg-indigo-100 text-indigo-800">
+                    {SUBSCRIPTION_TIERS[currentUserTier]?.name}
+                  </span>
+                  {pdfReady && pdfUrl && (
+                    <a 
+                      href={pdfUrl} 
+                      download={`affiliate-success-guide-${currentUserTier}.pdf`}
+                      className="text-sm text-indigo-600 underline"
+                    >
+                      📥 Download PDF Again
+                    </a>
+                  )}
+                </div>
+                
+                {currentUserTier === 'basic' && (
+                  <div className="mt-4 p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded border border-indigo-200">
+                    <h4 className="font-bold text-indigo-900 mb-2">🚀 Ready to Level Up?</h4>
+                    <p className="text-sm text-gray-700 mb-3">Upgrade to {SUBSCRIPTION_TIERS.premium.name} for advanced tools and personal support.</p>
+                    <button 
+                      onClick={() => upgradeTier('premium')}
+                      className="w-full px-4 py-2 bg-indigo-600 text-white rounded font-semibold hover:bg-indigo-700"
+                    >
+                      Upgrade to Premium - ${SUBSCRIPTION_TIERS.premium.price}/mo
+                    </button>
+                  </div>
+                )}
+                
+                {currentUserTier === 'premium' && (
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    <button onClick={() => setShowAnalytics(true)} className="px-3 py-2 border rounded text-sm hover:bg-gray-50">📊 Analytics</button>
+                    <button onClick={() => setShowContentLibrary(true)} className="px-3 py-2 border rounded text-sm hover:bg-gray-50">📚 Content</button>
+                    <button onClick={() => setShowABTesting(true)} className="px-3 py-2 border rounded text-sm hover:bg-gray-50">🧪 A/B Tests</button>
+                    <button onClick={() => setShowSupport(true)} className="px-3 py-2 border rounded text-sm hover:bg-gray-50">🚀 Support</button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="shadow rounded overflow-hidden">
@@ -242,6 +472,176 @@ export default function AffiliateLaunchpad() {
           </ul>
           <div className="mt-2 text-right">
             <button onClick={() => setOrderSuccess(null)} className="text-sm text-indigo-600">Close</button>
+          </div>
+        </div>
+      )}
+
+      {/* Premium Feature Modals */}
+      {showAnalytics && currentUserTier === 'premium' && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded shadow max-w-4xl w-full p-6 max-h-[80vh] overflow-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h4 className="font-bold text-xl">📊 Advanced Analytics Dashboard</h4>
+              <button onClick={() => setShowAnalytics(false)} className="text-2xl">&times;</button>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+              <div className="p-4 bg-indigo-50 rounded border border-indigo-200">
+                <h5 className="text-sm font-semibold text-indigo-700">Total Revenue</h5>
+                <p className="text-2xl font-bold mt-1">$2,847.50</p>
+                <p className="text-xs text-gray-600">+23% vs last month</p>
+              </div>
+              <div className="p-4 bg-emerald-50 rounded border border-emerald-200">
+                <h5 className="text-sm font-semibold text-emerald-700">Conversion Rate</h5>
+                <p className="text-2xl font-bold mt-1">4.2%</p>
+                <p className="text-xs text-gray-600">+0.8% improvement</p>
+              </div>
+              <div className="p-4 bg-amber-50 rounded border border-amber-200">
+                <h5 className="text-sm font-semibold text-amber-700">Click-through Rate</h5>
+                <p className="text-2xl font-bold mt-1">12.7%</p>
+                <p className="text-xs text-gray-600">+2.1% this month</p>
+              </div>
+              <div className="p-4 bg-purple-50 rounded border border-purple-200">
+                <h5 className="text-sm font-semibold text-purple-700">Active Campaigns</h5>
+                <p className="text-2xl font-bold mt-1">7</p>
+                <p className="text-xs text-gray-600">2 new this week</p>
+              </div>
+            </div>
+            <div className="bg-gray-50 p-6 rounded">
+              <h5 className="font-semibold mb-3">Performance Trends</h5>
+              <div className="h-48 bg-white rounded border flex items-center justify-center text-gray-500">
+                <div className="text-center">
+                  <div className="text-4xl mb-2">📈</div>
+                  <div>Advanced Chart Visualization</div>
+                  <div className="text-sm">Revenue trends & conversion tracking</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showContentLibrary && currentUserTier === 'premium' && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded shadow max-w-4xl w-full p-6 max-h-[80vh] overflow-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h4 className="font-bold text-xl">📚 Exclusive Content Library</h4>
+              <button onClick={() => setShowContentLibrary(false)} className="text-2xl">&times;</button>
+            </div>
+            <div className="grid md:grid-cols-3 gap-4">
+              <div className="border rounded p-4">
+                <h5 className="font-semibold text-indigo-700 mb-3">🎯 Advanced Strategies</h5>
+                <ul className="text-sm space-y-2 text-gray-700">
+                  <li>💎 High-Converting Email Templates</li>
+                  <li>🚀 Advanced Funnel Architectures</li>
+                  <li>📊 Data-Driven Optimization</li>
+                  <li>🎪 Psychology of Persuasion</li>
+                </ul>
+                <button className="mt-3 w-full px-3 py-2 border rounded text-sm hover:bg-gray-50">Access Content</button>
+              </div>
+              <div className="border rounded p-4">
+                <h5 className="font-semibold text-emerald-700 mb-3">📈 Case Studies</h5>
+                <ul className="text-sm space-y-2 text-gray-700">
+                  <li>💰 $10K/Month in 90 Days</li>
+                  <li>📱 Mobile-First Campaign Success</li>
+                  <li>🎯 Niche Market Domination</li>
+                  <li>📊 Split-Test Victory Stories</li>
+                </ul>
+                <button className="mt-3 w-full px-3 py-2 border rounded text-sm hover:bg-gray-50">Read Cases</button>
+              </div>
+              <div className="border rounded p-4">
+                <h5 className="font-semibold text-amber-700 mb-3">🛠️ Tools & Templates</h5>
+                <ul className="text-sm space-y-2 text-gray-700">
+                  <li>📋 Campaign Planning Worksheets</li>
+                  <li>🎨 Landing Page Templates</li>
+                  <li>📧 Email Sequence Blueprints</li>
+                  <li>📊 Performance Tracking Sheets</li>
+                </ul>
+                <button className="mt-3 w-full px-3 py-2 border rounded text-sm hover:bg-gray-50">Download Tools</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showABTesting && currentUserTier === 'premium' && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded shadow max-w-4xl w-full p-6 max-h-[80vh] overflow-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h4 className="font-bold text-xl">🧪 A/B Testing Lab</h4>
+              <button onClick={() => setShowABTesting(false)} className="text-2xl">&times;</button>
+            </div>
+            <div className="space-y-4">
+              <div className="border rounded p-4">
+                <div className="flex justify-between items-center mb-3">
+                  <h5 className="font-semibold">Landing Page Headlines</h5>
+                  <span className="px-2 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded">RUNNING</span>
+                </div>
+                <div className="grid md:grid-cols-2 gap-3">
+                  <div className="p-3 bg-indigo-50 rounded">
+                    <strong className="text-sm">Version A:</strong> "Start Earning Today"
+                    <div className="text-indigo-600 font-bold mt-1">Conversion: 3.2%</div>
+                  </div>
+                  <div className="p-3 bg-emerald-50 rounded">
+                    <strong className="text-sm">Version B:</strong> "Double Your Income"
+                    <div className="text-emerald-600 font-bold mt-1">Conversion: 4.7% 🏆</div>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-600 mt-2">Test Progress: 847 visitors | Statistical significance: 95%</p>
+              </div>
+              <div className="border rounded p-4">
+                <div className="flex justify-between items-center mb-3">
+                  <h5 className="font-semibold">Email Subject Lines</h5>
+                  <span className="px-2 py-1 bg-amber-100 text-amber-800 text-xs font-bold rounded">PENDING</span>
+                </div>
+                <div className="grid md:grid-cols-2 gap-3">
+                  <div className="p-3 bg-indigo-50 rounded">
+                    <strong className="text-sm">Version A:</strong> "Your Exclusive Invitation"
+                    <div className="text-indigo-600 font-bold mt-1">Open Rate: 22.1%</div>
+                  </div>
+                  <div className="p-3 bg-amber-50 rounded">
+                    <strong className="text-sm">Version B:</strong> "[URGENT] Don't Miss Out"
+                    <div className="text-amber-600 font-bold mt-1">Open Rate: 18.9%</div>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-600 mt-2">Need 200 more sends for significance</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSupport && currentUserTier === 'premium' && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded shadow max-w-2xl w-full p-6 max-h-[80vh] overflow-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h4 className="font-bold text-xl">🚀 Priority Support Center</h4>
+              <button onClick={() => setShowSupport(false)} className="text-2xl">&times;</button>
+            </div>
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              <div className="text-center p-3 bg-emerald-50 rounded">
+                <div className="text-2xl font-bold text-emerald-600">12h</div>
+                <div className="text-xs text-gray-600">Avg Response Time</div>
+              </div>
+              <div className="text-center p-3 bg-indigo-50 rounded">
+                <div className="text-2xl font-bold text-indigo-600">98%</div>
+                <div className="text-xs text-gray-600">Satisfaction Rate</div>
+              </div>
+              <div className="text-center p-3 bg-amber-50 rounded">
+                <div className="text-2xl font-bold text-amber-600">24/7</div>
+                <div className="text-xs text-gray-600">Availability</div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              <button className="px-4 py-3 bg-emerald-600 text-white rounded font-semibold hover:bg-emerald-700">💬 Live Chat Support</button>
+              <button className="px-4 py-3 border rounded hover:bg-gray-50">📞 Schedule Call</button>
+              <button className="px-4 py-3 border rounded hover:bg-gray-50">📧 Email Support</button>
+              <button className="px-4 py-3 border rounded hover:bg-gray-50">📋 Submit Ticket</button>
+            </div>
+            <div className="p-4 bg-emerald-50 rounded border border-emerald-200">
+              <h5 className="font-bold text-emerald-900 mb-2">🎯 1-on-1 Mentorship</h5>
+              <p className="text-sm mb-3">You have <strong>2 sessions remaining</strong> this month</p>
+              <button className="w-full px-4 py-2 bg-emerald-600 text-white rounded font-semibold hover:bg-emerald-700">Book Next Session</button>
+            </div>
           </div>
         </div>
       )}
